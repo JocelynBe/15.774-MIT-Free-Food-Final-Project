@@ -1,0 +1,34 @@
+# Ignore all build files
+#*.o
+#*.a
+#*.d
+
+# Ignore log files.
+#*.log
+
+# Ignore temporary files
+*~
+*.tmp
+
+# Ignore executables
+#*.exe
+
+# Ignore project generated directories
+/build
+/doc
+
+# Ignore directories of external libraries that get built
+/ext
+
+# Ignore PyCharm files
+*.iml
+*.xml
+
+# Ignore additional PyCharm files
+*.idea
+
+# Ignore __pycache__
+__pycache__/
+
+# Ignore the data directory
+/data
