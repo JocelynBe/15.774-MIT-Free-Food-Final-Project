@@ -22,6 +22,9 @@
 
 # Ignore PyCharm files
 *.iml
+
+# Ignore __pycache__ directories
+/__pycache__
 *.xml
 
 # Ignore additional PyCharm files

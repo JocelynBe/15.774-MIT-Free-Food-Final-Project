@@ -2,27 +2,36 @@ import email
 import re
 from datetime import datetime
 import pandas as pd
+import typing
 
 
 def read_file(file: str) -> list:
     """
     Reads the .txt file and grabs all of the email messages contained in it
     """
-    with open(file) as f:
+    with open(file, encoding="utf8") as f:
         data = f.readlines()
 
-    positions = []
-    tag = "Subject: [Vultures]"
-    for i in range(len(data)):
-        if data[i].startswith(tag):
-            positions.append(i)
+    # Every .txt email starts with
+    # From ...@.... or From ... at ...
+    # so we need to account for both cases to partition the emails
+    regex = r"From\s[a-z]*@|From\s[a-z]*\sat"
+    n = len(data)
+    idx = [i for i in range(n) if re.search(regex, data[i])]
 
-    starts = list(map(lambda x: x - positions[0], positions)) + [len(data)]
-    messages = [data[starts[i]:starts[i+1]] for i in range(len(starts) - 1)]
-    return messages
+    # Go through and separate the emails
+    n_idx = len(idx)
+    email_idx = [(0, 0)] * n_idx
+    for i in range(n_idx):
+        if i != (n_idx - 1):
+            email_idx[i] = (idx[i], idx[i+1])
+        else:
+            email_idx[i] = (idx[i], n)
+
+    return [data[email_idx[i][0]:email_idx[i][1]] for i in range(n_idx)]
 
 
-def parse_message(message: list) -> dict:
+def parse_message(message: list) -> typing.Union[dict, None]:
     """
     Parses the message using the email package
     """
@@ -38,9 +47,30 @@ def parse_message(message: list) -> dict:
     # Check to make sure that we have a valid email
     for key in email_dict.keys():
         if email_dict[key] is None:
-            return {}
+            return None
 
     return email_dict
+
+
+def parse_datetime(date: str) -> datetime:
+    """
+    Parses the datetime using multiple format and provides appropriate
+    error handling
+    """
+    # The dates have the following expected formats
+    # 1. Fri Oct 01 15:09:58 2004
+    # 2. Fri, 04 Jan 2013 13:51:36 -0500
+    # 3. Wed,05 Dec 2014 12:07:51 -0500
+    # So we need to account for both cases
+    fmts = ["%a %b %d %H:%M:%S %Y", "%a, %d %b %Y %H:%M:%S %z",
+            "%a,%d %b %Y %H:%M:%S %z"]
+    for fmt in fmts:
+        try:
+            return datetime.strptime(date, fmt)
+        except ValueError:
+            pass
+    raise ValueError("No valid date format found\n"
+                     "Bad date: {}".format(date))
 
 
 def clean_message(email_dict: dict) -> pd.DataFrame:
@@ -52,6 +82,7 @@ def clean_message(email_dict: dict) -> pd.DataFrame:
     # of a date like Oct 1 2013 so that we can parse it correctly
     regex = r"\s[0-9]\s"
     search_res = re.search(regex, email_dict["date"])
+
     if search_res:
         tmp_str = "0" + search_res.group().strip() + " "
         email_dict["date"] = re.sub(regex, tmp_str, email_dict["date"])
@@ -60,17 +91,8 @@ def clean_message(email_dict: dict) -> pd.DataFrame:
     # we can infer this from the +0000 string
     date = re.sub(r"\([A-Z]{3}\)", "", email_dict["date"]).rstrip()
 
-    # The dates have the following expected formats
-    # 1. Fri Oct 01 15:09:58 2004
-    # 2. Fri, 04 Jan 2013 13:51:36 -0500
-    # So we need to account for both cases
-    fmts = ["%a %b %d %H:%M:%S %Y", "%a, %d %b %Y %H:%M:%S %z"]
-    for fmt in fmts:
-        try:
-            date_res = datetime.strptime(date, fmt)
-            break
-        except ValueError:
-            pass
+    # Parse the date string appropriately
+    date_res = parse_datetime(date)
 
     # Grab just the email from the author of the message
     # Either this will be in the format <...@...> or it will be
@@ -82,8 +104,10 @@ def clean_message(email_dict: dict) -> pd.DataFrame:
 
     if at_search:
         email_dict["author"] = re.sub(r"\s\(", "", at_search.group())
-    else:
+    elif bracket_search:
         email_dict["author"] = re.sub(r"[<>]", "", bracket_search.group())
+    else:
+        pass
 
     # Combine the subject and body since we search those together
     body = str(email_dict["subject"]) + " " + str(email_dict["body"])
@@ -114,6 +138,14 @@ def parse_txt(txt_file: str) -> pd.DataFrame:
     df_list = [pd.DataFrame()] * n
     for (i, msg) in enumerate(emails):
         email_dict = parse_message(msg)
+
+        # Check for the case where we have a bad dictionary
+        if email_dict is None:
+            continue
+
         df_list[i] = clean_message(email_dict)
 
-    return pd.concat(df_list, ignore_index=True)
+    try:
+        return pd.concat(df_list, ignore_index=True)
+    except ValueError:
+        print(txt_file)

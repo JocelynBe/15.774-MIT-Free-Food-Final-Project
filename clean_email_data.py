@@ -311,21 +311,21 @@ def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     # author on the same day then it is likely that they are duplicates
 
     # Remove rows with duplicate IDs
-    bad_ids = ~df.duplicated(subset="id", keep="first")
-    df = df.loc[bad_ids, :]
+    good_ids = ~df.duplicated(subset="id", keep="first")
+    df = df.loc[good_ids, :]
 
     # Detect same author and day
-    idx = []
-    n = df.shape[0]
+    bad_idx = []
     df = df.sort_values(by="datetime")
+    df_idx = df.index.values
+    n = len(df_idx)
     for i in range(n - 1):
-        if (df.loc[i+1, "day"] == df.loc[i, "day"]) and \
-                (df.loc[i+1, "author"] == df.loc[i, "author"]):
+        if (df.loc[df_idx[i+1], "day"] == df.loc[df_idx[i], "day"]) and \
+                (df.loc[df_idx[i+1], "author"] == df.loc[df_idx[i], "author"]):
+            bad_idx.append(df_idx[i+1])
 
-            idx.append(i+1)
-
-    idx = np.setdiff1d(np.arange(n), idx)
-    return df.loc[idx, :]
+    good_idx = np.setdiff1d(df_idx, bad_idx)
+    return df.loc[good_idx, :]
 
 
 def csail_heuristic(df: pd.DataFrame) -> pd.DataFrame:
