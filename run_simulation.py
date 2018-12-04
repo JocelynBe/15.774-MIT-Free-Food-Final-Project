@@ -136,7 +136,7 @@ def main():
                         args.agent_type)
 
     # Save the log to disk
-    save_path = os.path.join(args.wd, "sim_res.csv")
+    save_path = os.path.join(args.wd, "sim_res_" + args.agent_type + ".csv")
     df.to_csv(save_path, index=False)
 
 
