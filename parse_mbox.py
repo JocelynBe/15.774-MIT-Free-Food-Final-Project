@@ -13,7 +13,11 @@ def parse_email(x: mailbox.mboxMessage) -> pd.DataFrame:
     date = x["date"]
     subject = x["subject"]
     author = x["from"]
-    message = x.get_payload(decode=True)
+    message = None
+    for part in x.walk():
+        if part.get_content_type() == "text/plain":
+            message = part.get_payload(decode=True)
+            break
 
     # We need to add a "0" in front of days like 6 May 2013 so that
     # we can parse the date
@@ -38,10 +42,29 @@ def parse_email(x: mailbox.mboxMessage) -> pd.DataFrame:
         author = re.sub(r"[<>]", "", author_res.group())
 
     # Combine the subject and body since we search those together
-    email = str(subject) + " " + str(message)
+    try:
+        if isinstance(subject, bytes):
+            subject = subject.decode()
+
+        if isinstance(message, bytes):
+            message = message.decode()
+
+    except UnicodeDecodeError:
+        return pd.DataFrame(
+            {"weekday": [], "day": [], "month": [], "year": [], "hour": [],
+             "minute": [], "email": [], "author": []}
+        )
+
+    try:
+        email = subject + " " + message
+    except TypeError:
+        return pd.DataFrame(
+            {"weekday": [], "day": [], "month": [], "year": [], "hour": [],
+             "minute": [], "email": [], "author": []}
+        )
 
     # Remove \n from the email
-    email = re.sub(r"\\n", "", email)
+    email = re.sub(r"[\n\r\t.,!?]", " ", email)
 
     # Get the final DataFrame for the given email
     df = pd.DataFrame(

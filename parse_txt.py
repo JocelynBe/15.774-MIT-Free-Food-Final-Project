@@ -110,10 +110,22 @@ def clean_message(email_dict: dict) -> pd.DataFrame:
         pass
 
     # Combine the subject and body since we search those together
-    body = str(email_dict["subject"]) + " " + str(email_dict["body"])
+    try:
+        if isinstance(email_dict["body"], bytes):
+            email_dict["body"] = email_dict["body"].decode()
 
-    # Remove \n from the email
-    body = re.sub(r"\\n", "", body)
+        if isinstance(email_dict["subject"], bytes):
+            email_dict["subject"] = email_dict["subject"].decode()
+    except UnicodeDecodeError:
+        return pd.DataFrame(
+            {"weekday": [], "day": [], "month": [], "year": [], "hour": [],
+             "minute": [], "email": [], "author": []}
+        )
+
+    body = email_dict["subject"] + " " + email_dict["body"]
+
+    # Remove breaks such as \n or \t plus all punctuation from the email
+    body = re.sub(r"[\n\r\t.,!?]", " ", body)
 
     # Build the message DataFrame
     df = pd.DataFrame(

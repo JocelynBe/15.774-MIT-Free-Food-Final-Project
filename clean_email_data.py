@@ -241,9 +241,8 @@ def get_location(emails: np.ndarray, email_ids: np.ndarray,
     # student_center = r"((stud)|(student center)|(student centre))"
 
     # special locations
-    special = r"((stud)|(student center)|(student centre))|(walker)|" \
-              r"(media lab)|(stata)|(next house)|(kresge)|(forbes)|" \
-              r"(spxce)|(morss)|(lobby 10)"
+    special = r"stud|student center|student centre|walker|media lab|stata|" \
+              r"next house|kresge|forbes|spxce|morss|lobby 10"
 
     # Define our set of regex handlers
     regex_handlers = [
@@ -289,11 +288,11 @@ def remove_spam(emails: np.ndarray, email_ids: np.ndarray) -> tuple:
     Removes spam emails from the data
     """
 
-    # I noticed that mail is typically spam if it contains the phrase
-    # "unsubscribe" or "special offer"; therefore if we can find this message
-    #  in the email, we will remove it from the data
+    # I noticed that mail is typically spam if it contains certain phrases
+    # such as "unsubscribe", "special offer", etc.; therefore if we can find
+    # this message in the email, we will remove it from the data
     n = emails.shape[0]
-    regex = r"(unsubscribe)|(special offer)"
+    regex = r"unsubscribe|special offer|promotion|price|upgrade|verify|%"
     idx = [i for i in range(n) if re.search(regex, "".join(emails[i]))]
     good_idx = np.setdiff1d(np.arange(n), idx)
     return emails[good_idx], email_ids[good_idx]
@@ -369,9 +368,24 @@ def clean_emails(email_file: str):
     # Change any instances of first, second, ... to 1st, 2nd, ...
     emails = change_ordinal_phrasing(df["email"].values.astype(str))
 
-    # Remove the punctuation
-    emails = np.char.replace(emails, ",", "")
-    emails = np.char.replace(emails, ".", "")
+    # Remove attachments, signature lines which are usually indicated by
+    # a -- in the email
+    emails = np.array([re.sub(r"--.*$", "", email) for email in emails])
+
+    # Remove the tags that are related to "Original message"
+    emails = np.array([re.sub(r">.*$", "", email) for email in emails])
+
+    # There's a number of characters that indicate a signature that need
+    # to be removed
+    emails = np.array([re.sub(r"<.*$", "", email) for email in emails])
+    emails = np.array([re.sub(r"_.*$", "", email) for email in emails])
+    emails = np.array([re.sub(r"\|.*$", "", email) for email in emails])
+    emails = np.array([re.sub(r"\*.*$", "", email) for email in emails])
+    emails = np.array([re.sub(r"~.*$", "", email) for email in emails])
+    emails = np.array([re.sub(r"http.*$", "", email) for email in emails])
+
+    # Update the emails in the original DataFrame
+    df.loc[:, "email"] = emails
 
     # Create unique IDs for each email
     email_ids = np.array([make_email_id(email) for email in emails])

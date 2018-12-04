@@ -35,3 +35,4 @@ __pycache__/
 
 # Ignore the data directory
 /data
+/clean_data
