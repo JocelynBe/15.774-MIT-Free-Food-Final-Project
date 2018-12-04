@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import argparse
 from tqdm import tqdm
+import os
 
 
 def get_edge_data(time_path: str) -> tuple:
@@ -117,25 +118,26 @@ def run_simulation(time_path: str, food_path: str, node_path: str,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--time_path", help="Location of time matrix",
+    parser.add_argument("--wd", help="Working directory of the script",
                         type=str)
-    parser.add_argument("--food_path", help="Location of emails", type=str)
-    parser.add_argument("--node_path", help="Location of building data",
-                        type=str)
-    parser.add_argument("--prob_path", help="Location of probability data",
-                        type=str)
-    parser.add_argument("--save_path", help="Location to save the log",
-                        type=str)
-    parser.add_argument("--agent_type", help="Type of agent for simulation",
-                        type=str)
+    parser.add_argument("--agent_type", help="Agent type for the simulation",
+                       type=str)
     args = parser.parse_args()
 
+    # The data sources have an expected name, so we will get them by
+    # combining the working directory with their file names
+    time_path = os.path.join(args.wd, "time_mat.csv")
+    food_path = os.path.join(args.wd, "clean_emails_liz_1.csv")
+    node_path = os.path.join(args.wd, "buildings_loc.csv")
+    prob_path = os.path.join(args.wd, "Prob_top20buildings_dayhr.csv")
+
     # Run the simulation
-    df = run_simulation(args.time_path, args.food_path, args.node_path,
-                        args.prob_path, args.agent_type)
+    df = run_simulation(time_path, food_path, node_path, prob_path,
+                        args.agent_type)
 
     # Save the log to disk
-    df.to_csv(args.save_path, index=False)
+    save_path = os.path.join(args.wd, "sim_res.csv")
+    df.to_csv(save_path, index=False)
 
 
 if __name__ == '__main__':
