@@ -101,9 +101,15 @@ def run_simulation(time_path: str, food_path: str, node_path: str,
         agent = agent_simulation.BaseAgent("random", agent_type, len(nodes))
     elif agent_type == "stata":
         agent = agent_simulation.BaseAgent("stata", agent_type, len(nodes))
+    elif agent_type == "prob1":
+        agent = agent_simulation.BaseAgent("prob1", agent_type, len(nodes))
+    elif agent_type == "prob2":
+        agent = agent_simulation.BaseAgent("prob2", agent_type, len(nodes))
+    elif agent_type == "prob3":
+        agent = agent_simulation.BaseAgent("prob3", agent_type, len(nodes))
     else:
-        agent = agent_simulation.BaseAgent("prob", agent_type, len(nodes))
-
+        print('Error bla')
+        
     sim.add_agent(agent)
     sim.predefine_log()
     sim.parse_freefood()

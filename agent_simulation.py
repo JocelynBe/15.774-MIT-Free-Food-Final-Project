@@ -18,6 +18,7 @@ class BaseAgent:
         self.agent_type = agent_type
         self.nnodes = nnodes
         self.position = self.rng.randint(0, self.nnodes - 1)
+        self.last = None
 
         # Either they are browsing, moving, or eating their food
         self.state = "browsing"
@@ -67,8 +68,13 @@ class BaseAgent:
         elif self.agent_type == "stata":
             stata_id = node_dict["32"]
             self.stata_decision(time, stata_id)
-        elif self.agent_type == "prob":
+        elif self.agent_type == "prob1":
             self.prob_decision(time, browse_lim, delta, edges, prob_df)
+        elif self.agent_type == "prob2":
+            self.prob_decision_2nd_order(time, browse_lim, delta, edges, prob_df)
+        elif self.agent_type == "prob3":
+            self.prob_decision_1st_rnd(time, browse_lim, delta, edges, prob_df)
+
 
     def rand_decision(self, time: pd.datetime, browse_lim: int, delta: int):
         """
@@ -170,7 +176,127 @@ class BaseAgent:
             edge_weights = prob_vect / time_vect
             dest = edge_weights.argmax()
             self.move(time, dest)
+            
+    def prob_decision_2nd_order(self, time: pd.datetime, browse_lim: int, delta: int,
+                      edges: np.ndarray, prob_df: pd.DataFrame):
+        """
+        Implements the decision function for the probability maximizing agent
+        """
+        # If the agent has not reached the browse limit, then it can
+        # continue to search for food
+        if self.browse_time < browse_lim:
+            self.browse_time += delta
+        else:
+            # We have the reached the browsing limit and thus need to make
+            # to select the next destination to look for food; we will
+            # do this by solving pi* = argmax_{j \in N \ i} p_{jt} / t_{ij}
+            # where i is the current node the agent is at, N is the set of
+            # nodes in the graph, p_{jt} is the probability of finding food
+            # at node j at time t and t_{ij} is the time to travel from node
+            # i to j
 
+            # Get the day and hour from the provided timestamp
+            weekday = time.isoweekday()
+            hour = time.hour
+
+            # Subset the DataFrame to only correspond to the particular
+            # weekday and hour
+            sub_df = prob_df.loc[
+                (prob_df["hour"] == hour) & (prob_df["weekday"] == weekday),
+                "probability"
+            ].to_frame()
+
+            sub_df["building_id"] = np.arange(sub_df.shape[0])
+            sub_df.reset_index(drop=True, inplace=True)
+            proba_building = sub_df.set_index('building_id').to_dict()['probability']
+
+            # Get all of the t_{ij} values for i != j
+            pos = self.position
+
+            maxi = -1
+            j_max,k_max = None,None
+            for j in range(0,self.nnodes):
+                if j != pos:
+                    time_pos_j = edges[pos,j]
+                    for k in range(0,self.nnodes):
+                        if k != pos and k != j:
+                            time_j_k = edges[j,k]
+                            tmp = proba_building[j]/time_pos_j + proba_building[k]/time_j_k
+                            if tmp > maxi:
+                                if self.last is not None:
+                                    if k != self.last:
+                                        maxi = tmp
+                                        j_max = j
+                                        k_max = k
+                                else:
+                                    maxi = tmp
+                                    j_max = j
+                                    k_max = k
+            self.last = pos  
+            self.move(time, j_max)
+
+    def prob_decision_1st_rnd(self, time: pd.datetime, browse_lim: int, delta: int,
+                      edges: np.ndarray, prob_df: pd.DataFrame):
+        """
+        Implements the decision function for the probability maximizing agent
+        """
+        # If the agent has not reached the browse limit, then it can
+        # continue to search for food
+        if self.browse_time < browse_lim:
+            self.browse_time += delta
+        else:
+            # We have the reached the browsing limit and thus need to make
+            # to select the next destination to look for food; we will
+            # do this by solving pi* = argmax_{j \in N \ i} p_{jt} / t_{ij}
+            # where i is the current node the agent is at, N is the set of
+            # nodes in the graph, p_{jt} is the probability of finding food
+            # at node j at time t and t_{ij} is the time to travel from node
+            # i to j
+
+            # Get the day and hour from the provided timestamp
+            weekday = time.isoweekday()
+            hour = time.hour
+
+            # Subset the DataFrame to only correspond to the particular
+            # weekday and hour
+            sub_df = prob_df.loc[
+                (prob_df["hour"] == hour) & (prob_df["weekday"] == weekday),
+                "probability"
+            ].to_frame()
+
+            sub_df["building_id"] = np.arange(sub_df.shape[0])
+            sub_df.reset_index(drop=True, inplace=True)
+
+            # Get all of the t_{ij} values for i != j
+            pos = self.position
+            other_nodes = np.setdiff1d(np.arange(edges.shape[0]), pos)
+            time_vect = np.empty(shape=(self.nnodes,))
+            time_vect[pos] = 1e6
+            time_vect[other_nodes] = np.array([edges[pos, node]
+                                               for node in other_nodes])
+
+            # Get the p_{jt} values for j != self.position (we fix the
+            # current location to have zero mass because this makes finding
+            # the argmax index easier)
+            prob_vect = np.empty(shape=(self.nnodes,))
+            prob_vect[pos] = 0.
+            prob_vect[other_nodes] = sub_df.loc[
+                sub_df["building_id"].isin(other_nodes), "probability"
+            ]
+
+            # Compute the element-wise division of p_{jt} / t_{ij} and
+            # get the argmax
+            edge_weights = prob_vect / time_vect
+            dest = edge_weights.argmax()
+            if random.randint(0,5) == 2:
+                rnd_pos = random.randint(0,self.nnodes-1)
+                while rnd_pos == pos:
+                    rnd_pos = random.randint(0,self.nnodes-1)
+                dest = rnd_pos
+            self.move(time, dest)
+
+
+            
     def move(self, time: pd.datetime, destination: int):
         """
         Tells the agent to move to a provided destination in the graph
